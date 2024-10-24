@@ -32,7 +32,7 @@ pipeline {
             steps {
                 script {
                     // Building the Docker Compose project
-                    sh 'docker-compose -f docker-compose.yaml build .'
+                    sh 'docker-compose -f docker-compose.yaml build '
                 }
             }
         }
