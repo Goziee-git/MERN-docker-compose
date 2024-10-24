@@ -1,10 +1,10 @@
 pipeline {
     agent any
     environment {
-        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-credentials-id' // Jenkins credentials ID for Docker Hub
-        IMAGE_NAME = 'your-dockerhub-username/your-app-name'
+        DOCKERHUB_CREDENTIALS_ID = '7828bad6-9e01-4862-a785-6c3ff1aa50ed' // Jenkins credentials ID for Docker Hub
+        IMAGE_NAME = 'proxxpa/mern-app'
         IMAGE_TAG = 'latest'
-        CONTAINER_NAME = 'my-app-container'
+        CONTAINER_NAME = 'mern-container'
         APP_PORT = '50' // The port on which the app will be exposed
     }
     stages {
