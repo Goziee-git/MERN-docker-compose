@@ -1,47 +1,48 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker:stable-dind' // Using Docker-in-Docker for building
+            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock' // Required for Docker-in-Docker
+        }
+    }
     environment {
-        DOCKERHUB_CREDENTIALS_ID = '7828bad6-9e01-4862-a785-6c3ff1aa50ed' // Jenkins credentials ID for Docker Hub
-        IMAGE_NAME = 'proxxpa/mern-app'
-        IMAGE_TAG = 'latest'
-        CONTAINER_NAME = 'mern-container'
-        APP_PORT = '50' // The port on which the app will be exposed
+        DOCKERHUB_CREDENTIALS_ID = '7828bad6-9e01-4862-a785-6c3ff1aa50ed' // Replace with your actual Jenkins credentials ID
+        DOCKER_IMAGE_NAME = 'proxxpa/mern-app' // Docker Hub repository name
+        DOCKER_IMAGE_TAG = 'latest'
     }
     stages {
         stage('Checkout') {
             steps {
-                // Checkout the code from the repository
                 checkout scm
             }
         }
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build the Docker image
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    // Building the Docker Compose project
+                    sh 'docker-compose -f docker-compose.yml build'
                 }
             }
         }
-        stage('Push Docker Image to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
                 script {
-                    // Log in to Docker Hub and push the Docker image
-                    withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        sh 'echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin'
+                    // Logging in to Docker Hub
+                    withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
+                        sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+
+                        // Tagging and pushing images to Docker Hub
+                        sh "docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                        sh "docker push ${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     }
-                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                 }
             }
         }
-        stage('Deploy Application') {
+        stage('Deploy') {
             steps {
                 script {
-                    // Stop and remove the container if it already exists
-                    sh "docker stop ${CONTAINER_NAME} || true"
-                    sh "docker rm ${CONTAINER_NAME} || true"
-                    
-                    // Run the Docker container to deploy the application
-                    sh "docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${IMAGE_NAME}:${IMAGE_TAG}"
+                    // Starting the services defined in the Docker Compose file
+                    sh 'docker-compose -f docker-compose.yml up -d'
                 }
             }
         }
@@ -49,15 +50,11 @@ pipeline {
     post {
         always {
             script {
-                // Clean up: log out from Docker Hub
+                // Clean up any dangling images
+                sh 'docker system prune -f'
+                // Log out of Docker Hub
                 sh 'docker logout'
             }
-        }
-        success {
-            echo 'Application successfully built, pushed to Docker Hub, and deployed!'
-        }
-        failure {
-            echo 'Build or deployment failed. Check the logs for more details.'
         }
     }
 }
