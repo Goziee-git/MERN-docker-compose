@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    environment {
+        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-credentials-id' // Jenkins credentials ID for Docker Hub
+        IMAGE_NAME = 'your-dockerhub-username/your-app-name'
+        IMAGE_TAG = 'latest'
+        CONTAINER_NAME = 'my-app-container'
+        APP_PORT = '50' // The port on which the app will be exposed
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from the repository
+                checkout scm
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                script {
+                    // Log in to Docker Hub and push the Docker image
+                    withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        sh 'echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin'
+                    }
+                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+        stage('Deploy Application') {
+            steps {
+                script {
+                    // Stop and remove the container if it already exists
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                    
+                    // Run the Docker container to deploy the application
+                    sh "docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                // Clean up: log out from Docker Hub
+                sh 'docker logout'
+            }
+        }
+        success {
+            echo 'Application successfully built, pushed to Docker Hub, and deployed!'
+        }
+        failure {
+            echo 'Build or deployment failed. Check the logs for more details.'
+        }
+    }
+}
